@@ -915,7 +915,8 @@ async fn tmux(
         "skill_view",
         "skill_search",
         "skill_install",
-        "skill_hub_list"
+        "skill_hub_list",
+        "skill_remove"
     )
 )]
 async fn skill(
@@ -1164,6 +1165,42 @@ async fn skill_hub_list(
         }
         Err(e) => {
             ctx.say(format!("error listing hub skills: {}", e)).await?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Remove an installed hub skill (member role required)
+#[poise::command(slash_command)]
+async fn skill_remove(
+    ctx: poise::Context<'_, Data, DiscordError>,
+    #[description = "skill name to remove"] name: String,
+) -> std::result::Result<(), DiscordError> {
+    let _ = ctx.channel_id().start_typing(&ctx.serenity_context().http);
+
+    let roles = DiscordChannel::get_user_roles(ctx.guild_id(), ctx.http(), ctx.author().id).await;
+    let channel = DiscordChannel::from_context(&ctx);
+
+    if !channel.is_member(&roles) {
+        ctx.say("error: remove skill requires member role").await?;
+        return Ok(());
+    }
+
+    match ctx.data().hub_client.remove(name.trim()) {
+        Ok(true) => {
+            ctx.say(format!("✓ removed hub skill `{}`", name.trim()))
+                .await?;
+        }
+        Ok(false) => {
+            ctx.say(format!(
+                "hub skill `{}` was not found. use `/skill hub-list` to see installed skills",
+                name.trim()
+            ))
+            .await?;
+        }
+        Err(e) => {
+            ctx.say(format!("error removing skill: {}", e)).await?;
         }
     }
 

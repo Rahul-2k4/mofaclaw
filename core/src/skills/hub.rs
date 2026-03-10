@@ -399,6 +399,7 @@ impl SkillHubClient {
 
     /// Remove an installed skill
     pub fn remove(&self, name: &str) -> Result<bool> {
+        validate_skill_name(name)?;
         let mut removed = false;
         let skill_dir = self.config.managed_root.join(name);
         if skill_dir.exists() {
@@ -653,5 +654,38 @@ mod tests {
             !root.path().join("demo-skill").exists(),
             "partial install directory should be removed on failure"
         );
+    }
+
+    #[test]
+    fn remove_rejects_path_traversal_name() {
+        let cache_root = TempDir::new().unwrap();
+        let managed_root = TempDir::new().unwrap();
+        let config = SkillHubClientConfig::for_mofaclaw()
+            .with_managed_root(managed_root.path())
+            .with_cache_root(cache_root.path());
+        let client = SkillHubClient::new(config).unwrap();
+
+        let err = client.remove("../outside").unwrap_err();
+        assert!(
+            err.to_string().contains("invalid skill name"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !managed_root.path().join("outside").exists(),
+            "path traversal should not remove files outside managed root"
+        );
+    }
+
+    #[test]
+    fn remove_returns_false_for_nonexistent_skill() {
+        let cache_root = TempDir::new().unwrap();
+        let managed_root = TempDir::new().unwrap();
+        let config = SkillHubClientConfig::for_mofaclaw()
+            .with_managed_root(managed_root.path())
+            .with_cache_root(cache_root.path());
+        let client = SkillHubClient::new(config).unwrap();
+
+        let removed = client.remove("no-such-skill").unwrap();
+        assert!(!removed, "expected false when skill does not exist");
     }
 }

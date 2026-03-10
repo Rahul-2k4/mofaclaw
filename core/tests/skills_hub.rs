@@ -311,4 +311,38 @@ mod skills_hub_tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_hub_client_remove_uninstalls_skill() {
+        let _guard = env_lock().lock().unwrap_or_else(|e| e.into_inner());
+        let home_dir = TempDir::new().unwrap();
+        let _home_guard = HomeEnvGuard::set(home_dir.path());
+
+        let (catalog_url, server_handle) =
+            spawn_test_hub_server("removable-skill", "A skill to be removed");
+        let hub_client = SkillHubClient::new(
+            SkillHubClientConfig::for_mofaclaw().with_catalog_url(catalog_url),
+        )
+        .unwrap();
+
+        // Install then remove
+        let record = hub_client
+            .install("removable-skill", None)
+            .await
+            .unwrap();
+        assert!(record.installed_path.exists(), "skill should be installed");
+
+        let removed = hub_client.remove("removable-skill").unwrap();
+        assert!(removed, "remove should return true for an installed skill");
+        assert!(
+            !record.installed_path.exists(),
+            "skill directory should be deleted after remove"
+        );
+        assert!(
+            hub_client.get_installed("removable-skill").unwrap().is_none(),
+            "registry record should be deleted after remove"
+        );
+
+        server_handle.join().unwrap();
+    }
+
 }
